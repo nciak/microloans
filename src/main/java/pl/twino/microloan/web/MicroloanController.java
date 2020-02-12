@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import pl.twino.microloan.dto.LoanApplicationDto;
-import pl.twino.microloan.exception.LoanDoesNotExistException;
 import pl.twino.microloan.service.MicroloanService;
 
 
@@ -30,8 +29,8 @@ public class MicroloanController {
         log.info("Application processed.", loanApplicationDto);
     }
 
-    @PostMapping("/loandelay/{id}")
-    public void delayLoan(@PathVariable("id") Long id) throws LoanDoesNotExistException {
-        microloanService.delayLoan(id);
+    @PostMapping("/loandelay/{customerId}/{loanId}")
+    public void delayLoan(@PathVariable("customerId") Long customerId, @PathVariable("id") Long loanId){
+        microloanService.delayLoan(customerId, loanId);
     }
 }

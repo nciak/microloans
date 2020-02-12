@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pl.twino.microloan.Constants;
 import pl.twino.microloan.dto.LoanApplicationDto;
-import pl.twino.microloan.exception.LoanDoesNotExistException;
+import pl.twino.microloan.exception.LoanAppException;
 import pl.twino.microloan.model.Customer;
 import pl.twino.microloan.model.LoanApplication;
 import pl.twino.microloan.model.LoanGranted;
@@ -38,26 +38,44 @@ public class MicroloanServiceImpl implements MicroloanService {
 
     @Override
     public void processApplication(LoanApplicationDto loanApplicationDto) {
+        verifyRequiredFields(loanApplicationDto);
+
         LoanApplication loanApplication = createApplicationToSaveInDb(loanApplicationDto);
         loanApplicationRepository.save(loanApplication);
 
-        if (isRiskyApplication(loanApplicationDto)) {
-            log.info("The risk level is too high to accept the application.");
+        if (loanApplicationDto.getAmount() > Constants.MAX_LOAN_AMOUNT){
+            log.info("Max amount is too high");
         } else {
-            LoanGranted loanGranted = convertToLoanGranted(loanApplication);
-            loanGrantedRepository.save(loanGranted);
-
-            if (loanApplicationDto.getCustomerId() == null) {
-                customerRepository.save(createNewCustomer(loanGranted));
+            if (isRiskyApplication(loanApplicationDto)) {
+                log.info("The risk level is too high to accept the application.");
             } else {
-                Customer customer = customerRepository.getOne(loanApplicationDto.getCustomerId());
-                List<LoanGranted> loanGrantedList = customer.getLoans();
-                loanGrantedList.add(loanGranted);
-                customerRepository.save(customer);
-            }
+                LoanGranted loanGranted = convertToLoanGranted(loanApplication);
 
-            log.info("The application has been accepted.");
+                if (loanApplicationDto.getCustomerId() == null){
+                    Customer newCustomer = createNewCustomer(loanGranted);
+                    loanGranted.setCustomer(newCustomer);
+                    customerRepository.save(newCustomer);
+                } else {
+                    Customer customer = addLoanGrantedForCustomer(loanApplicationDto, loanGranted);
+                    customerRepository.save(customer);
+                }
         }
+            log.info("The application has been accepted.");
+
+        }
+    }
+
+    private void verifyRequiredFields(LoanApplicationDto loanApplicationDto) {
+        if (loanApplicationDto.getDays() <= 0) throw new LoanAppException("Loan application has no days defined!");
+        if (loanApplicationDto.getAmount() <= 0) throw new LoanAppException("Loan application has no amount defined!");
+        if (loanApplicationDto.getDate() == null) throw new LoanAppException("Loan application has no date of creation!");
+    }
+
+    private Customer addLoanGrantedForCustomer(LoanApplicationDto loanApplicationDto, LoanGranted loanGranted) {
+        Customer customer = customerRepository.getOne(loanApplicationDto.getCustomerId());
+        List<LoanGranted> loanGrantedList = customer.getLoans();
+        loanGrantedList.add(loanGranted);
+        return customer;
     }
 
     private Customer createNewCustomer(LoanGranted loanGranted) {
@@ -70,20 +88,26 @@ public class MicroloanServiceImpl implements MicroloanService {
     }
 
     @Override
-    public void delayLoan(Long loanId) throws LoanDoesNotExistException {
+    public void delayLoan(Long customerId, Long loanId) {
         LoanGranted loanToDelay = loanGrantedRepository.findById(loanId)
-                .orElseThrow(() -> new LoanDoesNotExistException("Loan " + loanId.toString() + " does not exist!"));
+                .orElseThrow(() -> new LoanAppException("Loan " + loanId.toString() + " does not exist!"));
 
-        if (!loanToDelay.isDelayed()) {
-            loanToDelay.setDelayed(true);
-            LoanApplication loanApplication = loanToDelay.getLoanApplication();
-            loanApplication.setEndDateTerm(loanApplication.getEndDateTerm().plusDays(Constants.LOAN_DELAY_DAYS));
-            loanApplicationRepository.save(loanApplication);
-            loanGrantedRepository.save(loanToDelay);
-            log.info("Loan ", loanId, " delayed to ", loanApplication.getEndDateTerm());
+        if (loanToDelay.getCustomer().getId().equals(customerId)){
+            if (!loanToDelay.isDelayed()) {
+                loanToDelay.setDelayed(true);
+                LoanApplication loanApplication = loanToDelay.getLoanApplication();
+                loanApplication.setEndDateTerm(loanApplication.getEndDateTerm().plusDays(Constants.LOAN_DELAY_DAYS));
+                loanApplicationRepository.save(loanApplication);
+                loanGrantedRepository.save(loanToDelay);
+                log.info("Loan {} delayed to {}.", loanId, loanApplication.getEndDateTerm());
+            } else {
+                log.info("Loan {} has already been delayed!", loanId);
+            }
         } else {
-            log.error("Loan ", loanId, " has already been delayed!");
+            log.error("Customer ids do not match");
         }
+
+
 
     }
 
@@ -102,6 +126,7 @@ public class MicroloanServiceImpl implements MicroloanService {
     }
 
     private boolean isRiskyApplication(LoanApplicationDto loanApplicationDto) {
+
         LocalTime localTime = loanApplicationDto.getDate().toLocalTime();
         if (localTime.isAfter(Constants.RISK_HOURS_START) && localTime.isBefore(Constants.RISK_HOURS_STOP)
                 && loanApplicationDto.getAmount() == Constants.MAX_LOAN_AMOUNT) {

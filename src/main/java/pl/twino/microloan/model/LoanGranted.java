@@ -6,6 +6,7 @@ import pl.twino.microloan.Constants;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -26,11 +27,11 @@ public class LoanGranted {
     @GeneratedValue(strategy = GenerationType.IDENTITY, generator = Constants.LOAN_GRANTED_SEQUENCE_NAME)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "customer_id")
+    @ManyToOne(fetch = FetchType.LAZY)
     private Customer customer;
 
     @OneToOne
+    @JoinColumn(name = "loanapplication_id")
     private LoanApplication loanApplication;
 
     @Column(name = "delayed")

@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import pl.twino.microloan.Constants;
 
+import javax.persistence.CascadeType;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
@@ -24,6 +25,6 @@ public class Customer {
     @GeneratedValue(strategy = GenerationType.IDENTITY, generator = Constants.CUSTOMER_SEQUENCE_NAME)
     private Long id;
 
-    @OneToMany(mappedBy = "customer")
-    List<LoanGranted> loans;
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL)
+    private List<LoanGranted> loans;
 }
