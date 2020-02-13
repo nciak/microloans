@@ -40,8 +40,7 @@ public class MicroloanServiceImpl implements MicroloanService {
     public void processApplication(LoanApplicationDto loanApplicationDto) {
         verifyRequiredFields(loanApplicationDto);
 
-        LoanApplication loanApplication = createApplicationToSaveInDb(loanApplicationDto);
-        loanApplicationRepository.save(loanApplication);
+        LoanApplication loanApplication = loanApplicationRepository.save(createApplicationToSaveInDb(loanApplicationDto));
 
         if (loanApplicationDto.getAmount() > Constants.MAX_LOAN_AMOUNT){
             log.info("Max amount is too high");
@@ -51,14 +50,9 @@ public class MicroloanServiceImpl implements MicroloanService {
             } else {
                 LoanGranted loanGranted = convertToLoanGranted(loanApplication);
 
-                if (loanApplicationDto.getCustomerId() == null){
-                    Customer newCustomer = createNewCustomer(loanGranted);
-                    loanGranted.setCustomer(newCustomer);
-                    customerRepository.save(newCustomer);
-                } else {
-                    Customer customer = addLoanGrantedForCustomer(loanApplicationDto, loanGranted);
-                    customerRepository.save(customer);
-                }
+                Customer customer = addLoanGrantedForCustomer(loanApplicationDto, loanGranted);
+                loanGranted.setCustomer(customer);
+                customerRepository.save(customer);
         }
             log.info("The application has been accepted.");
 
@@ -72,10 +66,14 @@ public class MicroloanServiceImpl implements MicroloanService {
     }
 
     private Customer addLoanGrantedForCustomer(LoanApplicationDto loanApplicationDto, LoanGranted loanGranted) {
-        Customer customer = customerRepository.getOne(loanApplicationDto.getCustomerId());
-        List<LoanGranted> loanGrantedList = customer.getLoans();
-        loanGrantedList.add(loanGranted);
-        return customer;
+        if (loanApplicationDto.getCustomerId() != null && customerRepository.existsById(loanApplicationDto.getCustomerId())){
+            Customer customer = customerRepository.getOne(loanApplicationDto.getCustomerId());
+            List<LoanGranted> loanGrantedList = customer.getLoans();
+            loanGrantedList.add(loanGranted);
+            return customer;
+        } else {
+            return createNewCustomer(loanGranted);
+        }
     }
 
     private Customer createNewCustomer(LoanGranted loanGranted) {

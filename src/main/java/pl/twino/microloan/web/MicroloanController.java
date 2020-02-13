@@ -26,11 +26,11 @@ public class MicroloanController {
     @PostMapping()
     public void createNewApplication(@RequestBody LoanApplicationDto loanApplicationDto) {
         microloanService.processApplication(loanApplicationDto);
-        log.info("Application processed.", loanApplicationDto);
+        log.info("Application processed.");
     }
 
     @PostMapping("/loandelay/{customerId}/{loanId}")
-    public void delayLoan(@PathVariable("customerId") Long customerId, @PathVariable("id") Long loanId){
+    public void delayLoan(@PathVariable("customerId") Long customerId, @PathVariable("loanId") Long loanId){
         microloanService.delayLoan(customerId, loanId);
     }
 }
